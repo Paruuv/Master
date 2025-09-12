@@ -23,6 +23,8 @@ def trajectory_gen(data_list,lags,sensors):
             for j in range(len(sensors)):
                 trajectories[i,j,:] = data_temp[i:i+lags,sensors[j]]
             full_states[i,:] = data_temp[i+lags,:]
+            if n == 1:
+                print(i)
 
         if n < 1:
             X = trajectories.copy()
@@ -33,6 +35,20 @@ def trajectory_gen(data_list,lags,sensors):
             y = np.vstack((y,full_states))
     return X, y
 
+def get_sensor_data(data_list, sensor_locations):
+    t_dim = data_list[0].shape[0]
+    sensor_measurements_temp = np.zeros((t_dim, len(sensor_locations)))
+    for n, data_temp in enumerate(data_list):
+        for j, sensor in enumerate(sensor_locations):
+            sensor_measurements_temp[:, j] = data_temp[:, sensor]
+        if n < 1:
+           sensor_measurements = sensor_measurements_temp.copy()
+        else:
+           sensor_measurements = np.vstack((sensor_measurements, sensor_measurements_temp))
+    return sensor_measurements
+     
+    
+    
 class SHREDdata(torch.utils.data.Dataset):
     """
     PyTorch Dataset for time series sensor data and corresponding full-state measurements.
@@ -69,8 +85,6 @@ class SHREDdata(torch.utils.data.Dataset):
         self.Y = DATA['y']
         self.len = self.X.shape[0]
         
-        
-
     def __getitem__(self, index):
         """
         Get a single sample from the dataset.
