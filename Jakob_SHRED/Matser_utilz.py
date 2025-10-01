@@ -13,6 +13,8 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 
 def trajectory_gen(data_list,lags,sensors):
+    if not isinstance(data_list, list):
+        raise TypeError('data type of data_list must be a list')
     t_dim = data_list[0].shape[0]
     x_dim = data_list[0].shape[1]
     trajectories = np.zeros((t_dim-lags,len(sensors),lags))
@@ -23,8 +25,6 @@ def trajectory_gen(data_list,lags,sensors):
             for j in range(len(sensors)):
                 trajectories[i,j,:] = data_temp[i:i+lags,sensors[j]]
             full_states[i,:] = data_temp[i+lags,:]
-            if n == 1:
-                print(i)
 
         if n < 1:
             X = trajectories.copy()
@@ -36,6 +36,9 @@ def trajectory_gen(data_list,lags,sensors):
     return X, y
 
 def get_sensor_data(data_list, sensor_locations):
+    if not isinstance(data_list, list):
+        raise TypeError('data type of data_list must be a list')
+    
     t_dim = data_list[0].shape[0]
     sensor_measurements_temp = np.zeros((t_dim, len(sensor_locations)))
     for n, data_temp in enumerate(data_list):
@@ -46,6 +49,19 @@ def get_sensor_data(data_list, sensor_locations):
         else:
            sensor_measurements = np.vstack((sensor_measurements, sensor_measurements_temp))
     return sensor_measurements
+
+
+def data_prepare(data_list, lags, sensors):
+    sensor_measurements = get_sensor_data(data_list, sensors)
+    scaler = MinMaxScaler()
+    scaler = scaler.fit(sensor_measurements)
+
+    X, y = trajectory_gen(data_list, lags, sensors)
+    for i in range(X.shape[0]):
+        X[i, :, :] = scaler.transform(X[i, :, :].T).T
+    return X, y, scaler
+    
+
      
     
     
@@ -55,6 +71,8 @@ class SHREDdata(torch.utils.data.Dataset):
 
     Parameters
     ----------
+    DATA: dictionary containg X and y
+    
     X : torch.Tensor
         Input sensor sequences of shape (batch_size, lags, num_sensors).
     Y : torch.Tensor
@@ -112,16 +130,6 @@ class SHREDdata(torch.utils.data.Dataset):
         """
         return self.len
      
-    def data_scaler(self,train_data):
-        print('test')
-        sc = MinMaxScaler()
-        sc.fit(train_data.X)
-        return sc
-
-    def scale_data(self,scaler,data):
-        data.X = scaler.transform(data.X)
-        return data 
-
     def split_data(self, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, seed=42):
         generator = torch.Generator().manual_seed(seed)
         train, val, test = random_split(self, [train_ratio, val_ratio, test_ratio], generator=generator)
