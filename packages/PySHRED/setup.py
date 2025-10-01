@@ -4,11 +4,10 @@ from pathlib import Path
 long_description = Path("README.md").read_text(encoding="utf-8")
 
 setup(
-    name="pyshred",
+    name="pyshred-pi-extended",
     version="v1.0.21",
-    author="David Ye, Jan Williams, Mars Gao, Matteo Tomasetto, Stefano Riva, Nathan Kutz",
-    author_email="pyshred1@gmail.com",
-    description="PySHRED: Package for Shallow Recurrent Decoding",
+    author="David Ye, Jan Williams, Mars Gao, Matteo Tomasetto, Stefano Riva, Nathan Kutz, Jakob Tanderup",
+    description="PySHRED: Package for Shallow Recurrent Decoding with extended Physics-Informed Learning",
     long_description=long_description,
     long_description_content_type="text/markdown",   # 'text/x-rst' for reStructuredText
     packages=find_packages(),
