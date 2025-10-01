@@ -24,6 +24,7 @@ env/
 # System files
 .DS_Store
 Thumbs.db
+*.egg-info/
 
 # VSCode / IDE settings
 .vscode/

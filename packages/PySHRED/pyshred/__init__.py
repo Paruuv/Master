@@ -10,6 +10,7 @@ from .models.sequence_models.transformer_model import TRANSFORMER
 from .models.sequence_models.gru_model import GRU
 from .models.shred import SHRED
 from .models.pc_shred import PC_SHRED
+from .models.pi_shred import PI_SHRED
 from .processor.data_manager import DataManager
 from .processor.parametric_data_manager import ParametricDataManager
 from .engine.parametric_engine import ParametricSHREDEngine
@@ -26,6 +27,7 @@ __all__ = [
     "GRU",
     "SHRED",
     "PC_SHRED",
+    "PI_SHRED",
     "DataManager",
     "ParametricDataManager",
     "ParametricSHREDEngine",

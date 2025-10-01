@@ -379,6 +379,7 @@ class PC_SHRED(torch.nn.Module):
                 if verbose:
                     print("Early stopping triggered: patience threshold reached.")
                 break
+        print('weee training done')
         self.load_state_dict(best_params)
         device = next(self.parameters()).device
         X_train = train_dataset.X.to(device)    # shape (N_train, lags, n_sensors)
