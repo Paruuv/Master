@@ -1,0 +1,5 @@
+pysindy
+numpy<2.0
+scikit-learn
+pandas
+torch
