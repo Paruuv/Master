@@ -55,7 +55,7 @@ class MLP(AbstractDecoder):
             x = layer(x)
             # Apply activation & dropout for all but the final layer
             if i < len(self.layers) - 1:
-                x = F.relu(x)
+                x = F.sigmoid(x)
                 x = self.dropout(x)
         return x
 

@@ -15,9 +15,6 @@ from ..models.latent_forecaster_models.sindy import SINDy_Forecaster
 from ..models.latent_forecaster_models.lstm import LSTM_Forecaster
 from ..objects.device import get_device
 
-
-
-
 SEQUENCE_MODELS = {
     "LSTM": LSTM,
     "TRANSFORMER": TRANSFORMER,
@@ -100,11 +97,7 @@ class PI_SHRED(torch.nn.Module):
         """
         super().__init__()
         if sequence_model is None:
-            if (isinstance(latent_forecaster, SINDy_Forecaster) or 
-                (isinstance(latent_forecaster, str) and latent_forecaster.upper() == "SINDY_FORECASTER")):
-                self.sequence = GRU()
-            else:
-                self.sequence = LSTM()
+            self.sequence = LSTM()
         elif isinstance(sequence_model, AbstractSequence):
             self.sequence = sequence_model
         elif isinstance(sequence_model, str):
@@ -173,22 +166,10 @@ class PI_SHRED(torch.nn.Module):
             If sindy=False: Reconstructed full-state tensor.
             If sindy=True: Tuple of (reconstruction, target_latents, predicted_latents).
         """
-        if sindy == True:
-            h_out = self.sequence(x)
-            output = self.decoder(h_out)
-            with torch.autograd.set_detect_anomaly(True):
-                if sindy:
-                    h_t = h_out[:-1, :]
-                    ht_replicates = h_t.unsqueeze(1).repeat(1, self.num_replicates, 1)
-                    for _ in range(10):
-                        ht_replicates = self.e_sindy(ht_replicates, dt=self.dt)
-                    h_out_replicates = h_out[1:, :].unsqueeze(1).repeat(1, self.num_replicates, 1)
-                    output = output, h_out_replicates, ht_replicates
-        else:
-            h_out = self.sequence(x)
-            output = self.decoder(h_out)
+        
+        h_out = self.sequence(x)
+        output = self.decoder(h_out)
         return output
-
     
     def _seq_model_outputs(self, x, sindy=False):
         """
@@ -206,44 +187,16 @@ class PI_SHRED(torch.nn.Module):
         torch.Tensor or tuple
             Sequence model outputs.
         """
-        if sindy == True:
-            h_out = self.sequence(x)
-            if sindy:
-                h_t = h_out[:-1, :]
-                ht_replicates = h_t.unsqueeze(1).repeat(1, self.num_replicates, 1)
-                for _ in range(10):
-                    ht_replicates = self.e_sindy(ht_replicates, dt=self.dt)
-                h_out_replicates = h_out[1:, :].unsqueeze(1).repeat(1, self.num_replicates, 1)
-                h_outs = h_out_replicates, ht_replicates
-        else:
-            h_outs = self.sequence(x)
+
+        h_outs = self.sequence(x)
         return h_outs
-
-    def _sindys_threshold(self, threshold):
-        """
-        Apply thresholding to SINDy coefficients.
-
-        Parameters
-        ----------
-        threshold : float
-            Threshold value for coefficient pruning.
-        """
-        self.e_sindy.thresholding(threshold)
-
-    def _sindys_add_noise(self, noise):
-        """
-        Add noise to SINDy coefficients.
-
-        Parameters
-        ----------
-        noise : float
-            Noise level to add.
-        """
-        self.e_sindy.add_noise(noise)
+    def compute_loss(x):
+        r_ode = 0
+        return r_ode
 
 
     # sindy_regularization previously set to 1.0
-    def fit(self, train_dataset, val_dataset,  batch_size=64, num_epochs=200, lr=1e-3, sindy_regularization=0,
+    def fit(self, train_dataset, val_dataset,  batch_size=64, num_epochs=200, lr=1e-3,
             optimizer="AdamW", verbose=True, threshold=0.5, base_threshold=0.0, patience=20,
             sindy_thres_epoch=20, weight_decay=0.01):
         """
@@ -283,31 +236,7 @@ class PI_SHRED(torch.nn.Module):
         np.ndarray
             Array of validation errors for each epoch.
         """
-        if not isinstance(self.latent_forecaster, SINDy_Forecaster) and sindy_regularization > 0:
-            warnings.warn(
-                "`latent_forecaster` is not a SINDy_Forecaster; disabling SINDy regularization.",
-                UserWarning
-            )
-            sindy_regularization = 0
-
-        if sindy_regularization > 0:
-            sindy = True
-            if not isinstance(self.decoder, MLP):
-                warnings.warn("WARNING: SINDy regularization > 0: switching decoder to MLP for compatibility.",
-                    UserWarning
-                )
-                self.decoder = MLP()
-        else:
-            sindy = False
-
         device = get_device()
-        if isinstance(self.latent_forecaster, SINDy_Forecaster):
-            self.dt = self.latent_forecaster.dt
-            self.poly_order = self.latent_forecaster.poly_order
-            self.lib_dim = self.latent_forecaster.lib_dim
-            self.include_sine = self.latent_forecaster.include_sine
-            self.e_sindy = E_SINDy(self.num_replicates, self.sequence.hidden_size, self.lib_dim, self.poly_order,
-                                self.include_sine).to(device)
         input_size = train_dataset.X.shape[2] # nsensors + nparams
         output_size = train_dataset.Y.shape[1]
         lags = train_dataset.X.shape[1] # lags
@@ -325,30 +254,25 @@ class PI_SHRED(torch.nn.Module):
         patience_counter = 0
         best_params = self.state_dict()
         best_val_error = float('inf')  # Initialize with a large value
-        if sindy == True:
-            print("Fitting SindySHRED...")
-        else:
-            print("Fitting SHRED...")
+
+        print("Fitting SHRED...")
+
         for epoch in range(1, num_epochs + 1):
             self.train()
             running_loss = 0.0
             for data in train_loader:
-                if sindy:
-                    outputs, h_gru, h_sindy = self(data[0], sindy=True)
-                    optimizer.zero_grad()
-                    loss = criterion(outputs, data[1]) + criterion(h_gru, h_sindy) * sindy_regularization + torch.abs(torch.mean(h_gru)) * 0.1
-                else:
-                    outputs = self.forward(data[0], sindy=False)
-                    optimizer.zero_grad()
-                    loss = criterion(outputs, data[1])
+                outputs = self.forward(data[0])
+                optimizer.zero_grad()
+                data_loss = criterion(outputs, data[1])
+                loss = data_loss
+                u = self.forward(data[0])
+                u_t = torch.autograd.grad(u, data[0], torch.ones_like(u), retain_graph=True,create_graph=True)[0]
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
             if verbose:
                 print(f"Epoch {epoch}: Average training loss = {running_loss / len(train_loader):.6f}")
-            if sindy:
-                if epoch % sindy_thres_epoch == 0 and epoch != 0:
-                    self.e_sindy.thresholding(threshold=threshold, base_threshold=base_threshold)
+
             self.eval()
             val_loader = DataLoader(val_dataset, shuffle=False, batch_size=batch_size)
             val_criterion = torch.nn.MSELoss(reduction="sum")
@@ -364,6 +288,7 @@ class PI_SHRED(torch.nn.Module):
                     batch_loss = val_criterion(preds, Y_val)
                     total_val_loss += batch_loss.item()
                     total_val_elems += Y_val.numel()
+            
             # now compute the true mean‐squared‐error
             val_error = total_val_loss / total_val_elems
             val_error_list.append(val_error)
@@ -379,7 +304,7 @@ class PI_SHRED(torch.nn.Module):
                 if verbose:
                     print("Early stopping triggered: patience threshold reached.")
                 break
-        print('weee training done')
+        print('weee training done wewe')
         self.load_state_dict(best_params)
         device = next(self.parameters()).device
         X_train = train_dataset.X.to(device)    # shape (N_train, lags, n_sensors)
@@ -388,12 +313,11 @@ class PI_SHRED(torch.nn.Module):
         # run through encoder to get latents
         self.eval()
         with torch.no_grad():
-            latents = self._seq_model_outputs(X_all, sindy=False)   # (N_train+N_val, latent_dim)
+            latents = self._seq_model_outputs(X_all)   # (N_train+N_val, latent_dim)
         # to numpy and hand off to pysindy
         latents_np = latents.cpu().numpy()
-        if isinstance(self.latent_forecaster, SINDy_Forecaster):
-            self.latent_forecaster.fit(latents_np)
-        elif isinstance(self.latent_forecaster, LSTM_Forecaster):
+
+        if isinstance(self.latent_forecaster, LSTM_Forecaster):
             self.latent_forecaster.fit(latents=latents_np, num_epochs=num_epochs, batch_size=batch_size, lr=lr)
         return torch.tensor(val_error_list).detach().cpu().numpy()
 
